@@ -285,6 +285,7 @@ MIT License — free to use for portfolio or commercial applications.
 
 ## Author
 
+**Naman Vashishta** · [GitHub @NamanVashishta](https://github.com/NamanVashishta)
 **Anshita Bhardwaj** · [GitHub @Anshitaa](https://github.com/Anshitaa)
 
 ---
