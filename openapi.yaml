@@ -1,0 +1,245 @@
+openapi: 3.0.0
+info:
+  title: Docu-Sync API
+  description: |
+    Automated documentation synchronization service for detecting UI changes and updating documentation.
+    Uses Google Gemini AI to generate professional documentation updates and GitHub integration to create pull requests.
+  version: 1.0.0
+  contact:
+    name: Docu-Sync Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://your-deployment-url.com
+    description: Production server (replace with your deployed URL)
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Check if the service is running and healthy
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: docu-sync
+
+  /detect-change:
+    post:
+      summary: Detect changes between two UI screenshots
+      description: |
+        Analyzes two images using SSIM (Structural Similarity Index) to detect visual changes.
+        Returns similarity score, change level, and bounding boxes for changed regions.
+      operationId: detectChange
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - old_image
+                - new_image
+              properties:
+                old_image:
+                  type: string
+                  format: binary
+                  description: Original/baseline screenshot
+                new_image:
+                  type: string
+                  format: binary
+                  description: Updated screenshot to compare
+      responses:
+        '200':
+          description: Change detection completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  ssim:
+                    type: number
+                    format: float
+                    description: Structural similarity score (0-1, 1=identical)
+                    example: 0.8542
+                  boxes:
+                    type: array
+                    description: Bounding boxes for detected changes
+                    items:
+                      type: object
+                      properties:
+                        x:
+                          type: integer
+                        y:
+                          type: integer
+                        width:
+                          type: integer
+                        height:
+                          type: integer
+                        area:
+                          type: integer
+                  summary:
+                    type: string
+                    description: Human-readable change summary
+                    example: "Detected minor changes (SSIM: 0.8542). Found 2 changed region(s)."
+        '400':
+          description: Bad request - missing required files
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /generate-update:
+    post:
+      summary: Generate updated documentation text using Google Gemini AI
+      description: |
+        Uses Google Gemini AI to generate updated documentation text based on detected changes.
+        The model analyzes the change summary and current documentation to produce relevant updates.
+      operationId: generateUpdate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - change_summary
+              properties:
+                change_summary:
+                  type: string
+                  description: Description of detected changes
+                  example: "Button color changed from blue to green. Text updated from 'Submit Form' to 'Continue'."
+                current_readme:
+                  type: string
+                  description: Current README content for context (optional)
+                  example: "## UI Components\nOur app features a blue submit button..."
+      responses:
+        '200':
+          description: Documentation update generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  new_text:
+                    type: string
+                    description: Generated documentation update
+                    example: "The submit button has been updated to green for improved accessibility and visual consistency. The button text now reads 'Continue' to better reflect the user flow."
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /create-pr:
+    post:
+      summary: Create GitHub Pull Request with documentation updates
+      description: |
+        Creates a new branch, commits updated README and optional screenshot,
+        and opens a Pull Request on GitHub.
+      operationId: createPullRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - new_text
+              properties:
+                branch:
+                  type: string
+                  description: Branch name (auto-generated if not provided)
+                  example: "docu-sync/auto-1738363200"
+                new_text:
+                  type: string
+                  description: Updated documentation text to insert between markers
+                  example: "The submit button is now green for better accessibility."
+                new_image_b64:
+                  type: string
+                  format: byte
+                  description: Base64-encoded screenshot (optional)
+                image_path:
+                  type: string
+                  description: Path to image in repository
+                  default: "docs/screenshot.png"
+                readme_path:
+                  type: string
+                  description: Path to README file
+                  default: "README.md"
+      responses:
+        '200':
+          description: Pull Request created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  pr_url:
+                    type: string
+                    format: uri
+                    description: URL of the created Pull Request
+                    example: "https://github.com/Anshitaa/DocumentSync/pull/1"
+                  pr_number:
+                    type: integer
+                    description: Pull Request number
+                    example: 1
+                  branch:
+                    type: string
+                    description: Branch name used
+                    example: "docu-sync/auto-1738363200"
+        '400':
+          description: Bad request - missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "change_summary is required"
